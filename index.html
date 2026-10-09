@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>لوحة تحكم مجموعة الشيخ ريان التعليمية</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AlzaSyCxzmdCdQZDRWPIlFrSrGX0AGWGyHsDpgE",
+  authDomain: "sheikh-rayan-education.firebaseapp.com",
+  projectId: "sheikh-rayan-education",
+  storageBucket: "sheikh-rayan-education.firebasestorage.app",
+  messagingSenderId: "155446368184",
+  appId: "1:155446368184:web:1f69e19aa0ac6e71c6a14d"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+signInWithPopup(auth, new GoogleAuthProvider()).then(() => {
+    if(window.initApp) window.initApp();
+}).catch(err => console.error("Auth error:", err));
+<style>
+:root{--gold:#b6862c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{background:#0b1220;color:#e5e7eb;font-family:Tahoma,'Segoe UI',sans-serif}
+.sb{background:linear-gradient(to top,#0a0f1a,#111827 55%,#1e293b)}
+.card{background:#111827;border:1px solid #1e293b;border-radius:1rem;padding:1.25rem}
+.in{width:100%;background:#1e293b;border:1px solid #334155;border-radius:.5rem;padding:.5rem .75rem;font-size:.875rem;color:#e5e7eb}
+.btn{background:var(--gold);color:#0f172a;border-radius:.5rem;padding:.5rem 1rem;font-weight:600;font-size:.875rem}
+.b2{background:#1e293b;border:1px solid #334155;border-radius:.5rem;padding:.35rem .75rem;font-size:.8rem}
+.nv{display:flex;gap:.6rem;padding:.5rem .75rem;border-radius:.5rem;color:#cbd5e1;font-size:.875rem;cursor:pointer;white-space:nowrap}
+.nv.on{background:rgba(255,255,255,.1);color:#fff}
+.mk{border:1px solid #334155;border-radius:.5rem;padding:.3rem .7rem;font-size:.8rem}
+.mk.on{background:var(--gold);color:#0f172a;border-color:var(--gold)}
+</style>
+</head>
+<body>
+<div class="flex min-h-screen">
+ <aside class="sb hidden lg:flex flex-col w-64 shrink-0 p-4 border-e border-white/5">
+  <div class="flex items-center gap-2 px-2 py-3 mb-3">
+   <div class="size-9 rounded-lg flex items-center justify-center font-bold text-slate-900" style="background:var(--gold)">ق</div>
+   <div class="text-sm font-bold text-white">مجموعة الشيخ ريان التعليمية</div>
+  </div>
+  <nav id="nav" class="space-y-1"></nav>
+ </aside>
+ <main class="flex-1 min-w-0">
+  <div id="mnav" class="lg:hidden flex gap-1 overflow-x-auto border-b border-white/10 p-2"></div>
+  <header class="border-b border-white/10 px-6 py-3 flex justify-between text-sm">
+   <b>لوحة تحكم التعليم</b><span id="who" class="text-slate-400">مشرف (وضع الإدارة)</span>
+  </header>
+  <div id="app" class="p-6 md:p-8 space-y-6"><div class="text-slate-500">جاري الاتصال بقاعدة البيانات...</div></div>
+ </main>
+</div>
+<script>
+const H=['الحلقة الأولى','الحلقة الثانية'];
+const HM=['محرم','صفر','ربيع الأول','ربيع الآخر','جمادى الأولى','جمادى الآخرة','رجب','شعبان','رمضان','شوال','ذو القعدة','ذو الحجة'];
+const RL={owner:'مشرف ومعلم',supervisor:'مشرف',teacher:'معلم',student:'طالب'};
+const PG={home:['🏠','الرئيسية'],students:['👥','إدارة الطلاب'],attend:['📅','التحضير'],staffp:['🔑','المعلمون والمشرفون'],mine:['📘','دروسي'],
+ plans:['✏️','الخطط القرآنية'],tikrar:['🔁','التكرارات للمتن'],read:['📖','المقروء / المسموع'],prog:['🏆','البرامج الشخصية'],forms:['📋','الاستبانات والنماذج']};
+const \$=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;n'}[c]));
+const hf=new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{day:'numeric',month:'long',year:'numeric'});
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const hj=i=>i?hf.format(new Date(i+'T12:00:00')):'';
+const S={role:'owner',me:null,st:[],se:[],ro:[],pr:[],page:'home',edit:null,view:null,acc:'',names:{},mk:'',marks:{},les:''};
+let db, r_tools;
+
+window.initApp = async function() {
+  db = window.fb.db;
+  const { collection, doc, onSnapshot } = window.fb;
+  
+  S.role = 'owner'; // وضع المشرف الكامل للتحكم بكل الأقسام
+  \$('#who').textContent = RL[S.role];
+
+  // الاستماع لتغييرات البيانات من Firebase مباشرة
+  onSnapshot(collection(db, 'sessions'), snapshot => {
+    S.se = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  });
+
+  onSnapshot(collection(db, 'students'), snapshot => {
+    S.st = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  });
+
+  onSnapshot(collection(db, 'roles'), snapshot => {
+    S.ro = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+  });
+
+  buildNav();
+  render();
+};
+
+function buildNav(){
+  const k=['home','students','attend','staffp','plans','tikrar','read','prog','forms'];
+  const h=cls=>k.map(p=>`<a class="nv ${cls}" data-p="${p}" onclick="go('${p}')"><span>${PG[p][0]}</span>${PG[p][1]}</a>`).join('');
+  $('#nav').innerHTML=h('');$('#mnav').innerHTML=h('');
+}
+function go(p){S.page=p;S.edit=null;S.view=null;S.acc='';render()}
+function render(){
+  document.querySelectorAll('.nv').forEach(a=>a.classList.toggle('on',a.dataset.p===S.page));
+  const f={home,students,attend,staffp,mine,
+    plans:()=>`<div class="card text-center text-slate-400 py-10">الخطط القرآنية — قريبًا</div>`,
+    tikrar:()=>`<div class="card text-center text-slate-400 py-10">التكرارات للمتن — قريبًا</div>`,
+    read:()=>`<div class="card text-center text-slate-400 py-10">المقروء / المسموع — قريبًا</div>`,
+    prog:()=>`<div class="card text-center text-slate-400 py-10">البرامج الشخصية — قريبًا</div>`,
+    forms:()=>`<div class="card text-center text-slate-400 py-10">الاستبانات والنماذج — قريبًا</div>`
+  }[S.page]||soon;
+  app(f());
+}
+const soon=()=>`<div class="card text-center text-slate-400 py-10">قريبًا</div>`;
+const app=h=>{\$('#app').innerHTML=h};
+
+/* ---------- الرئيسية ---------- */
+function top(){
+ const c=iso(new Date(Date.now()-30*864e5)),m={};
+ S.se.filter(x=>x.date>=c).forEach(x=>Object.entries(x.marks||{}).forEach(([k,v])=>{if(v==='p')m[k]=(m[k]||0)+1}));
+ return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([k,n])=>`<div class="flex justify-between text-sm py-1"><span>${esc(sn(k))}</span><span class="text-amber-300">${n}</span></div>`).join('')||'<div class="text-xs text-slate-500 text-center py-4">لا توجد بيانات بعد</div>';
+}
+function sn(id){return S.st.find(s=>s.id===id)?.name||'—';}
+function home(){
+ return `<h1 class="text-2xl font-bold">مرحباً بك في لوحة تحكم مجموعة الشيخ ريان التعليمية</h1>
+ <div class="card flex items-center justify-between gap-4 flex-wrap"><div><div class="font-bold text-lg">التحضير</div><div class="text-sm text-slate-400">أيام التحضير: السبت والأربعاء فقط</div></div><button class="btn" onclick="go('attend')">ابدأ التحضير الآن</button></div>
+ <div class="grid grid-cols-2 gap-4"><div class="card"><div class="text-xs text-slate-400">الطلاب</div><div class="text-3xl font-bold">${S.st.length}</div></div><div class="card"><div class="text-xs text-slate-400">الحصص المسجلة</div><div class="text-3xl font-bold">${S.se.length}</div></div></div>
+ <div class="card" style="border-top:4px solid var(--gold)"><div class="font-bold text-sm mb-1" style="color:var(--gold)">✅ التميز الحضوري</div><div class="text-xs text-slate-500 mb-2">الأكثر حضورًا خلال آخر 30 يومًا</div>${top()}</div>`;
+}
+
+/* ---------- الطلاب ---------- */
+function lessons(sid,hl,joined){
+ const l=S.se.filter(x=>x.halaqa===hl&&['p','l'].includes((x.marks||{})[sid])&&(!joined||x.date>=joined)).sort((a,b)=>b.date<a.date?-1:1);
+ return l.length?l.map(x=>`<div class="flex justify-between text-sm py-1 border-b border-slate-800"><span>${esc(x.lesson||'—')}</span><span class="text-slate-400">${hj(x.date)}${x.marks[sid]==='l'?' (متأخر)':''}</span></div>`).join(''):'<div class="text-xs text-slate-500">لا توجد دروس مسجلة بعد</div>';
+}
+const bd=s=>s.by?`${s.bd} ${HM[s.bm-1]||''} ${s.by}هـ`:'—';
+function students(){
+ if(S.edit!==null)return form();
+ let h=`<div class="flex justify-between items-center"><h1 class="text-xl font-bold">إدارة الطلاب</h1><button class="btn" onclick="S.edit='new';S.acc='';render()">+ طالب جديد</button></div><div class="card space-y-2">`;
+ h+=S.st.map(s=>`<div class="flex items-center justify-between gap-2 py-2 border-b border-slate-800"><div><div class="font-medium">${esc(s.name)}</div><div class="text-xs text-slate-500">${esc(s.halaqa)} · ${esc(s.phone||'—')}</div></div><div class="flex gap-1"><button class="b2" onclick="S.view='${s.id}';render()">الدروس</button><button class="b2" onclick="S.edit='${s.id}';S.acc='${esc(s.account||'')}';render()">تعديل</button><button class="b2" onclick="delS('${s.id}')">حذف</button></div></div>`).join('')||'<div class="text-sm text-slate-500 text-center py-4">لم يُضَف طلاب بعد</div>';
+ h+='</div>';
+ const v=S.st.find(s=>s.id===S.view);
+ if(v)h+=`<div class="card"><div class="font-bold mb-1">${esc(v.name)}</div><div class="text-xs text-slate-400 mb-2">الميلاد: ${bd(v)} · الانضمام: ${hj(v.joined)}</div>${lessons(v.id,v.halaqa,v.joined)}</div>`;
+ return h;
+}
+function form(){
+ const s=S.edit==='new'?{}:S.st.find(x=>x.id===S.edit)||{};
+ return `<div class="card space-y-3"><div class="font-bold">${s.id?'تعديل طالب':'طالب جديد'}</div>
+ <input id="f_n" class="in" placeholder="الاسم الثلاثي" value="${esc(s.name||'')}">
+ <input id="f_p" class="in" placeholder="رقم الجوال" inputmode="tel" value="${esc(s.phone||'')}">
+ <select id="f_h" class="in">${H.map(h=>`<option ${s.halaqa===h?'selected':''}>${h}</option>`).join('')}</select>
+ <div class="text-xs text-slate-400">تاريخ الميلاد (هجري)</div>
+ <div class="grid grid-cols-3 gap-2"><select id="f_d" class="in">${Array.from({length:30},(_,i)=>`<option ${s.bd==i+1?'selected':''}>${i+1}</option>`).join('')}</select>
+ <select id="f_m" class="in">${HM.map((m,i)=>`<option value="\${i+1}" ${s.bm==i+1?'selected':''}>${m}</option>`).join('')}</select>
+ <input id="f_y" class="in" placeholder="السنة" inputmode="numeric" value="${s.by||''}"></div>
+ <div class="flex gap-2"><button class="btn" onclick="saveS()">حفظ</button><button class="b2" onclick="S.edit=null;render()">إلغاء</button></div></div>`;
+}
+async function saveS(){
+ const g=i=>\$('#'+i).value.trim(),n=g('f_n');
+ if(!n)return alert('الاسم مطلوب');
+ const old=S.edit==='new'?null:S.st.find(x=>x.id===S.edit),id=old?old.id:'s'+Date.now().toString(36);
+ const d={name:n,phone:g('f_p'),halaqa:g('f_h'),bd:+g('f_d'),bm:+g('f_m'),by:+g('f_y')||null,joined:old?.joined||iso(new Date())};
+ try{
+  await window.fb.setDoc(window.fb.doc(db, 'students', id), d);
+  S.edit=null;render();
+ }catch(e){alert('تعذّر الحفظ: '+(e.message||e.code))}
+}
+async function delS(id){
+ const s=S.st.find(x=>x.id===id);
+ if(!s||!confirm('حذف الطالب '+s.name+'؟'))return;
+ try{await window.fb.deleteDoc(window.fb.doc(db, 'students', id))}catch(e){alert('تعذّر الحذف')}
+}
+
+/* ---------- التحضير ---------- */
+function dates(){const o=[];for(let i=0;i<35;i++){const d=new Date(Date.now()-i*864e5);if([3,6].includes(d.getDay()))o.push(iso(d))}return o}
+function attend(){
+ const hi=S.ah??0,dt=S.ad||dates()[0],id='h'+hi+'_'+dt,cur=S.se.find(x=>x.id===id)||{};
+ if(S.mk!==id){S.marks={...(cur.marks||{})};S.les=cur.lesson||'';S.mk=id}
+ const L=S.st.filter(s=>s.halaqa===H[hi]);
+ const b=(sid,v,t)=>`<button class="mk ${S.marks[sid]===v?'on':''}" onclick="mark('${sid}','${v}')">${t}</button>`;
+ return `<h1 class="text-xl font-bold">التحضير</h1>
+ <div class="card space-y-3"><div class="grid grid-cols-2 gap-2">
+ <select class="in" onchange="S.ah=+this.value;render()">${H.map((h,i)=>`<option value="\${i}" ${i==hi?'selected':''}>${h}</option>`).join('')}</select>
+ <select class="in" onchange="S.ad=this.value;render()">${dates().map(d=>`<option value="\${d}" ${d==dt?'selected':''}>${hj(d)}</option>`).join('')}</select></div>
+ <input class="in" placeholder="عنوان الدرس" value="${esc(S.les)}" oninput="S.les=this.value">
+ ${L.map(s=>`<div class="flex items-center justify-between py-2 border-b border-slate-800"><span class="text-sm">\${esc(s.name)}</span><span class="flex gap-1">\${b(s.id,'p','حاضر')}${b(s.id,'l','متأخر')}${b(s.id,'a','غائب')}</span></div>`).join('')||'<div class="text-sm text-slate-500">لا طلاب في هذه الحلقة</div>'}
+ <button class="btn" onclick="saveA('${id}')">حفظ التحضير</button></div>`;
+}
+function mark(sid,v){S.marks[sid]=v;render()}
+async function saveA(id){
+ const hi=S.ah??0,dt=S.ad||dates()[0];
+ try{
+  await window.fb.setDoc(window.fb.doc(db, 'sessions', id), {halaqa:H[hi],date:dt,lesson:S.les.trim(),marks:S.marks});
+  alert('تم الحفظ بنجاح');
+ }catch(e){alert('تعذّر الحفظ: '+(e.message||e.code))}
+}
+
+/* ---------- المعلمون والمشرفون ---------- */
+function staffp(){
+ return `<h1 class="text-xl font-bold">المعلمون والمشرفون</h1>
+ <div class="card space-y-2">${S.ro.map(r=>`<div class="flex justify-between items-center py-2 border-b border-slate-800"><span class="text-sm">\${esc(r.id)} <span class="text-xs text-slate-500">· ${RL[r.role]}${r.halaqa?' · '+esc(r.halaqa):''}</span></span><button class="b2" onclick="delR('\${esc(r.id)}')">إزالة</button></div>`).join('')||'<div class="text-sm text-slate-500">لم يُضَف أحد بعد</div>'}</div>
+ <div class="card space-y-3"><div class="font-bold">إضافة مشرف أو معلم جديد</div>
+ <input id="r_id" class="in" placeholder="البريد الإلكتروني أو معرف المستخدم">
+ <select id="r_r" class="in"><option value="teacher">معلم</option><option value="supervisor">مشرف</option></select>
+ <select id="r_h" class="in"><option value="">كل الحلقات</option>${H.map(h=>`<option>\${h}</option>`).join('')}</select>
+ <button class="btn" onclick="saveR()">إضافة</button></div>`;
+}
+async function saveR(){
+ const id=\$('#r_id').value.trim();
+ if(!id)return alert('أدخل معرف المستخدم أو البريد');
+ try{
+  await window.fb.setDoc(window.fb.doc(db, 'roles', id), {role:$('#r_r').value,halaqa:$('#r_h').value});
+  \$('#r_id').value='';render();alert('تمت الإضافة بنجاح');
+ }catch(e){alert('تعذّرت الإضافة')}
+}
+async function delR(id){if(confirm('إزالة هذا المستخدم؟'))try{await window.fb.deleteDoc(window.fb.doc(db, 'roles', id))}catch(e){alert('تعذّرت الإزالة')} }
+
+function mine(){return '<div class="card">لوحة الطالب</div>';}
+</script>
+</body>
+</html>Í
+Sßs
